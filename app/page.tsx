@@ -28,7 +28,7 @@ export default function UserOrderPage() {
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: string | string[] }>({})
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false) // 場所確認モーダルの状態
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false)
   
   const [myOrderId, setMyOrderId] = useState<string | null>(null)
   const [orderNumber, setOrderNumber] = useState<number | null>(null)
@@ -128,26 +128,26 @@ export default function UserOrderPage() {
   if (orderNumber) {
     return (
       <main className="max-w-md mx-auto p-6 bg-white min-h-screen text-center flex flex-col justify-center items-center">
-        <h1 className="text-xl font-bold text-gray-700 mb-2">ご注文ありがとうございます！</h1>
+        <h1 className="text-xl font-bold text-gray-800 mb-2">ご注文ありがとうございます！</h1>
         <div className="border-4 border-orange-500 rounded-2xl p-8 my-6 w-full shadow-lg bg-orange-50">
-          <p className="text-sm text-gray-600 mb-1">あなたの呼び出し番号</p>
+          <p className="text-sm text-gray-700 font-semibold mb-1">あなたの呼び出し番号</p>
           <p className="text-6xl font-black text-orange-600">#{orderNumber}</p>
         </div>
         
         <div className="mb-6">
           {orderStatus === 'pending' && (
-            <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-xl font-bold">
-              👨‍🍳 調理中です。しばらくお待ちください...
+            <div className="bg-blue-100 text-blue-900 px-4 py-2 rounded-xl font-bold">
+              調理中です。しばらくお待ちください...
             </div>
           )}
           {orderStatus === 'ready' && (
             <div className="bg-orange-500 text-white px-6 py-4 rounded-xl font-black text-lg animate-bounce">
-              🔔 お待たせしました！売り場まで取りにお越しください！
+              お待たせしました！売り場まで取りにお越しください！
             </div>
           )}
           {orderStatus === 'completed' && (
-            <div className="bg-green-100 text-green-800 px-4 py-2 rounded-xl font-bold">
-              ✅ ご利用ありがとうございました！
+            <div className="bg-green-100 text-green-900 px-4 py-2 rounded-xl font-bold">
+              ご利用ありがとうございました！
             </div>
           )}
         </div>
@@ -167,15 +167,14 @@ export default function UserOrderPage() {
   return (
     <main className="max-w-md mx-auto p-4 bg-gray-50 min-h-screen pb-20">
       <header className="mb-4 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">学園祭モバイルオーダー</h1>
-        <p className="text-sm text-gray-500 mb-3">お好きなメニューを選んで注文してください</p>
+        <h1 className="text-2xl font-bold text-gray-900">2-12 モバイルオーダー</h1>
+        <p className="text-sm text-gray-700 font-medium mb-3">お好きなメニューを選んで注文してください</p>
         
-        {/* 場所確認ボタン */}
         <button
           onClick={() => setIsLocationModalOpen(true)}
-          className="bg-blue-50 text-blue-600 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 shadow-sm hover:bg-blue-100"
+          className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 shadow-sm hover:bg-blue-100"
         >
-          📍 模擬店の場所・アクセスを確認する
+          📍 店の場所・アクセスを確認する
         </button>
       </header>
 
@@ -186,23 +185,23 @@ export default function UserOrderPage() {
               {menu.image_url ? (
                 <img src={menu.image_url} alt={menu.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="flex items-center justify-center h-full text-xs text-gray-400">No Image</div>
+                <div className="flex items-center justify-center h-full text-xs text-gray-500 font-semibold">No Image</div>
               )}
             </div>
             <div className="flex-1">
-              <h2 className="font-semibold text-gray-800">{menu.name}</h2>
-              <p className="text-orange-600 font-bold">¥{menu.price}</p>
+              <h2 className="font-bold text-gray-900">{menu.name}</h2>
+              <p className="text-orange-600 font-extrabold">¥{menu.price}</p>
               <div className="mt-1">
-                {menu.stock_status === 'abundance' && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">余裕あり</span>}
-                {menu.stock_status === 'low' && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">残りわずか</span>}
-                {menu.stock_status === 'sold_out' && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">在庫なし</span>}
+                {menu.stock_status === 'abundance' && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">余裕あり</span>}
+                {menu.stock_status === 'low' && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-bold">残りわずか</span>}
+                {menu.stock_status === 'sold_out' && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold">在庫なし</span>}
               </div>
             </div>
             <div>
               <button
                 disabled={menu.stock_status === 'sold_out'}
                 onClick={() => handleOpenModal(menu)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`px-4 py-2 rounded-lg text-sm font-bold ${
                   menu.stock_status === 'sold_out' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600'
                 }`}
               >
@@ -229,12 +228,12 @@ export default function UserOrderPage() {
       {isLocationModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
-            <h3 className="text-lg font-bold mb-2 text-gray-800">📍 模擬店の場所</h3>
-            <div className="bg-gray-100 p-4 rounded-xl my-4 text-sm text-gray-700 space-y-2">
+            <h3 className="text-lg font-bold mb-2 text-gray-900">📍 模擬店の場所</h3>
+            <div className="bg-gray-100 p-4 rounded-xl my-4 text-sm text-gray-800 space-y-2">
               <p className="font-bold text-base text-orange-600">〇号館 2階 201教室</p>
-              <p className="text-xs text-gray-500">（中庭側の階段を上ってすぐ右側です）</p>
+              <p className="text-xs text-gray-600 font-medium">（中庭側の階段を上ってすぐ右側です）</p>
             </div>
-            <p className="text-xs text-gray-500 mb-6">
+            <p className="text-xs text-gray-700 font-medium mb-6">
               商品が「お渡し準備完了」になったら、こちらの場所まで番号札（スマホ画面）を持って取りにお越しください！
             </p>
             <button
@@ -251,10 +250,10 @@ export default function UserOrderPage() {
       {selectedMenu && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-4">{selectedMenu.name}のオプション</h3>
+            <h3 className="text-lg font-bold mb-4 text-gray-900">{selectedMenu.name}のオプション</h3>
             {selectedMenu.options?.map((opt) => (
               <div key={opt.name} className="mb-4">
-                <label className="text-sm font-semibold text-gray-700 block mb-2">{opt.name}</label>
+                <label className="text-sm font-bold text-gray-800 block mb-2">{opt.name}</label>
                 
                 {opt.type === 'multiple' ? (
                   <div className="space-y-2 bg-gray-50 p-3 rounded-lg border">
@@ -262,7 +261,7 @@ export default function UserOrderPage() {
                       const currentList = (selectedOptions[opt.name] as string[]) || []
                       const isChecked = currentList.includes(choice)
                       return (
-                        <label key={choice} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <label key={choice} className="flex items-center gap-2 text-sm text-gray-800 font-medium cursor-pointer">
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -278,7 +277,7 @@ export default function UserOrderPage() {
                   <select
                     value={(selectedOptions[opt.name] as string) || ''}
                     onChange={(e) => setSelectedOptions({ ...selectedOptions, [opt.name]: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white"
+                    className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white font-medium text-gray-900"
                   >
                     {opt.choices.map((choice) => (
                       <option key={choice} value={choice}>{choice}</option>
@@ -288,8 +287,8 @@ export default function UserOrderPage() {
               </div>
             ))}
             <div className="flex gap-2 mt-6">
-              <button onClick={() => setSelectedMenu(null)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-medium">キャンセル</button>
-              <button onClick={handleAddToCart} className="flex-1 bg-orange-500 text-white py-2 rounded-lg text-sm font-medium">カートに入れる</button>
+              <button onClick={() => setSelectedMenu(null)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-bold text-gray-800">キャンセル</button>
+              <button onClick={handleAddToCart} className="flex-1 bg-orange-500 text-white py-2 rounded-lg text-sm font-bold">カートに入れる</button>
             </div>
           </div>
         </div>
@@ -299,24 +298,24 @@ export default function UserOrderPage() {
       {isCartOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-55">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[80vh] flex flex-col">
-            <h3 className="text-lg font-bold mb-4">注文内容の確認</h3>
+            <h3 className="text-lg font-bold mb-4 text-gray-900">注文内容の確認</h3>
             <div className="flex-1 overflow-y-auto space-y-3 mb-4">
               {cart.map((item, index) => (
                 <div key={index} className="border-b pb-2 flex justify-between items-center text-sm">
                   <div>
-                    <p className="font-semibold">{item.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-bold text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-700 font-medium">
                       {Object.entries(item.selectedOptions).map(([k, v]) => 
                         `${k}: ${Array.isArray(v) ? v.join(', ') : v}`
                       ).join(' / ')}
                     </p>
                   </div>
-                  <p className="font-bold">¥{item.price}</p>
+                  <p className="font-bold text-gray-900">¥{item.price}</p>
                 </div>
               ))}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setIsCartOpen(false)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-medium">もどる</button>
+              <button onClick={() => setIsCartOpen(false)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-bold text-gray-800">もどる</button>
               <button onClick={handleCheckout} className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-bold">注文を確定する</button>
             </div>
           </div>
