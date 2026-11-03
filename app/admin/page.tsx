@@ -18,6 +18,7 @@ type Menu = {
   price: number
   stock_status: 'abundance' | 'low' | 'sold_out'
   manual_cash_count: number
+  created_at?: string
 }
 
 export default function AdminPage() {
@@ -37,14 +38,22 @@ export default function AdminPage() {
       .from('orders')
       .select('*')
 
+    // メニュー一覧（作成日時順で取得）
     const { data: menuData } = await supabase
       .from('menus')
-      .select('id, name, price, stock_status, manual_cash_count')
+      .select('id, name, price, stock_status, manual_cash_count, created_at')
       .order('created_at', { ascending: true })
 
     if (activeOrders) setOrders(activeOrders)
     if (historyOrders) setAllOrders(historyOrders)
-    if (menuData) setMenus(menuData)
+    
+    // 確実に順番を固定するためにフロント側でもソートを保証する
+    if (menuData) {
+      const sortedMenus = [...menuData].sort((a, b) => 
+        (a.created_at || a.id).localeCompare(b.created_at || b.id)
+      )
+      setMenus(sortedMenus)
+    }
     setLoading(false)
   }
 
@@ -166,7 +175,6 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                {/* 提供数・売上の表示（text-gray-400 を text-gray-600 に変更） */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-white p-3 rounded-lg border">
                   <div>
                     <p className="text-gray-600 font-medium">総提供数</p>
@@ -186,7 +194,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 手動現金販売カウント用ボタン */}
                 <div className="flex items-center justify-between text-xs pt-1">
                   <span className="text-gray-700 font-semibold">現場現金の手動追加（直接販売分）:</span>
                   <div className="flex items-center gap-2">
