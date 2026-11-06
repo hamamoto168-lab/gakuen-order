@@ -3,265 +3,326 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-type Order = {
-  id: string
-  order_number: number
-  items: { menuId: string; name: string; price: number; selectedOptions: { [key: string]: string } }[]
-  payment_type: string
-  status: 'pending' | 'ready' | 'completed'
-  created_at: string
-}
-
 type Menu = {
   id: string
   name: string
   price: number
+  image_url: string | null
+  options: { name: string; type: 'single' | 'multiple'; choices: string[] }[]
   stock_status: 'abundance' | 'low' | 'sold_out'
-  manual_cash_count: number
 }
 
-export default function AdminPage() {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [allOrders, setAllOrders] = useState<Order[]>([])
+type CartItem = {
+  menuId: string
+  name: string
+  price: number
+  selectedOptions: { [key: string]: string | string[] }
+  quantity: number
+}
+
+export default function UserOrderPage() {
   const [menus, setMenus] = useState<Menu[]>([])
   const [loading, setLoading] = useState(true)
-
-  const fetchData = async () => {
-    const { data: activeOrders } = await supabase
-      .from('orders')
-      .select('*')
-      .neq('status', 'completed')
-      .order('created_at', { ascending: true })
-
-    const { data: historyOrders } = await supabase
-      .from('orders')
-      .select('*')
-
-    const { data: menuData } = await supabase
-      .from('menus')
-      .select('id, name, price, stock_status, manual_cash_count')
-      .order('created_at', { ascending: true })
-
-    if (activeOrders) setOrders(activeOrders)
-    if (historyOrders) setAllOrders(historyOrders)
-    if (menuData) setMenus(menuData)
-    setLoading(false)
-  }
+  
+  const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null)
+  const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: string | string[] }>({})
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false)
+  
+  const [myOrderId, setMyOrderId] = useState<string | null>(null)
+  const [orderNumber, setOrderNumber] = useState<number | null>(null)
+  const [orderStatus, setOrderStatus] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchData()
+    async function fetchMenus() {
+      const { data } = await supabase.from('menus').select('*').order('created_at', { ascending: true })
+      setMenus(data || [])
+      setLoading(false)
+    }
+    fetchMenus()
+  }, [])
 
-    const orderChannel = supabase
-      .channel('public:orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchData()
-      })
-      .subscribe()
+  useEffect(() => {
+    if (!myOrderId) return
 
-    const menuChannel = supabase
-      .channel('public:menus')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menus' }, () => {
-        fetchData()
-      })
+    const channel = supabase
+      .channel(`order-${myOrderId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${myOrderId}` },
+        (payload) => {
+          setOrderStatus(payload.new.status)
+        }
+      )
       .subscribe()
 
     return () => {
-      supabase.removeChannel(orderChannel)
-      supabase.removeChannel(menuChannel)
+      supabase.removeChannel(channel)
     }
-  }, [])
+  }, [myOrderId])
 
-  const updateOrderStatus = async (id: string, newStatus: 'pending' | 'ready' | 'completed') => {
-    const { error } = await supabase
+  const handleOpenModal = (menu: Menu) => {
+    setSelectedMenu(menu)
+    const initialOptions: { [key: string]: string | string[] } = {}
+    menu.options?.forEach((opt) => {
+      if (opt.type === 'multiple') {
+        initialOptions[opt.name] = []
+      } else if (opt.choices.length > 0) {
+        initialOptions[opt.name] = opt.choices[0]
+      }
+    })
+    setSelectedOptions(initialOptions)
+  }
+
+  const handleCheckboxChange = (optName: string, choice: string, checked: boolean) => {
+    const currentList = (selectedOptions[optName] as string[]) || []
+    if (checked) {
+      setSelectedOptions({ ...selectedOptions, [optName]: [...currentList, choice] })
+    } else {
+      setSelectedOptions({ ...selectedOptions, [optName]: currentList.filter((item) => item !== choice) })
+    }
+  }
+
+  const handleAddToCart = () => {
+    if (!selectedMenu) return
+    const newItem: CartItem = {
+      menuId: selectedMenu.id,
+      name: selectedMenu.name,
+      price: selectedMenu.price,
+      selectedOptions: { ...selectedOptions },
+      quantity: 1,
+    }
+    setCart([...cart, newItem])
+    setSelectedMenu(null)
+    setIsCartOpen(true)
+  }
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return
+
+    const { data, error } = await supabase
       .from('orders')
-      .update({ status: newStatus })
-      .eq('id', id)
+      .insert([
+        {
+          items: cart,
+          payment_type: 'cash',
+          status: 'pending',
+        },
+      ])
+      .select()
 
-    if (error) alert('更新に失敗しました: ' + error.message)
+    if (error) {
+      alert('注文の送信に失敗しました: ' + error.message)
+    } else if (data && data.length > 0) {
+      setMyOrderId(data[0].id)
+      setOrderNumber(data[0].order_number)
+      setOrderStatus('pending')
+      setCart([])
+      setIsCartOpen(false)
+    }
   }
 
-  const updateStockStatus = async (id: string, currentStatus: string) => {
-    const nextStatus = 
-      currentStatus === 'abundance' ? 'low' :
-      currentStatus === 'low' ? 'sold_out' : 'abundance'
+  if (loading) return <div className="p-6 text-center text-black font-bold">読み込み中...</div>
 
-    const { error } = await supabase
-      .from('menus')
-      .update({ stock_status: nextStatus })
-      .eq('id', id)
+  if (orderNumber) {
+    return (
+      <main className="max-w-md mx-auto p-6 bg-white min-h-screen text-center flex flex-col justify-center items-center">
+        <h1 className="text-xl font-bold text-gray-900 mb-2">ご注文ありがとうございます！</h1>
+        <div className="border-4 border-orange-500 rounded-2xl p-8 my-6 w-full shadow-lg bg-orange-50">
+          <p className="text-sm text-gray-800 font-bold mb-1">あなたの呼び出し番号</p>
+          <p className="text-6xl font-black text-orange-600">#{orderNumber}</p>
+        </div>
+        
+        <div className="mb-6">
+          {orderStatus === 'pending' && (
+            <div className="bg-blue-100 text-blue-900 px-4 py-2 rounded-xl font-bold border border-blue-300">
+              調理中です。しばらくお待ちください...
+            </div>
+          )}
+          {orderStatus === 'ready' && (
+            <div className="bg-orange-500 text-white px-6 py-4 rounded-xl font-black text-lg animate-bounce shadow-md">
+              お待たせしました！売り場まで取りにお越しください！
+            </div>
+          )}
+          {orderStatus === 'completed' && (
+            <div className="bg-green-100 text-green-900 px-4 py-2 rounded-xl font-bold border border-green-300">
+              ご利用ありがとうございました！
+            </div>
+          )}
+        </div>
 
-    if (error) alert('在庫更新に失敗しました: ' + error.message)
+        {orderStatus === 'completed' && (
+          <button
+            onClick={() => { setOrderNumber(null); setMyOrderId(null); setOrderStatus(null); }}
+            className="bg-gray-800 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-sm"
+          >
+            新しい注文をする
+          </button>
+        )}
+      </main>
+    )
   }
-
-  const addManualCashCount = async (menuId: string, currentCount: number) => {
-    const { error } = await supabase
-      .from('menus')
-      .update({ manual_cash_count: currentCount + 1 })
-      .eq('id', menuId)
-
-    if (error) alert('更新に失敗しました: ' + error.message)
-  }
-
-  const subManualCashCount = async (menuId: string, currentCount: number) => {
-    if (currentCount <= 0) return
-    const { error } = await supabase
-      .from('menus')
-      .update({ manual_cash_count: currentCount - 1 })
-      .eq('id', menuId)
-
-    if (error) alert('更新に失敗しました: ' + error.message)
-  }
-
-  const getStats = (menuId: string, menuPrice: number, manualCount: number) => {
-    let onlineCount = 0
-    allOrders
-      .filter((o) => o.status === 'completed')
-      .forEach((o) => {
-        o.items.forEach((item) => {
-          if (item.menuId === menuId) {
-            onlineCount += 1
-          }
-        })
-      })
-
-    const totalCount = onlineCount + manualCount
-    const onlineRevenue = onlineCount * menuPrice
-    const cashRevenue = manualCount * menuPrice
-    const totalRevenue = onlineRevenue + cashRevenue
-
-    return { onlineCount, manualCount, totalCount, onlineRevenue, cashRevenue, totalRevenue }
-  }
-
-  if (loading) return <div className="p-6 text-center">読み込み中...</div>
 
   return (
-    <main className="max-w-2xl mx-auto p-4 bg-gray-50 min-h-screen pb-12">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">店員用管理ダッシュボード</h1>
-        <p className="text-sm text-gray-700 font-medium">注文確認、在庫管理、売上・提供数集計を行います</p>
+    <main className="max-w-md mx-auto p-4 bg-gray-50 min-h-screen pb-20">
+      <header className="mb-4 text-center">
+        <h1 className="text-2xl font-black text-gray-900">2-12 モバイルオーダー</h1>
+        <p className="text-sm text-gray-800 font-bold mb-3">お好きなメニューを選んで注文してください</p>
+        
+        <button
+          onClick={() => setIsLocationModalOpen(true)}
+          className="bg-blue-50 text-blue-800 border border-blue-300 px-4 py-2 rounded-xl text-xs font-black inline-flex items-center gap-1 shadow-sm hover:bg-blue-100"
+        >
+          📍 店の場所・アクセスを確認する
+        </button>
       </header>
 
-      {/* 在庫・売上・手動現金追加セクション */}
-      <section className="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-100">
-        <h2 className="text-lg font-bold mb-3 text-gray-800">在庫管理 ＆ 売上・提供数</h2>
-        <div className="space-y-4">
-          {menus.map((menu) => {
-            const stats = getStats(menu.id, menu.price, menu.manual_cash_count)
-            return (
-              <div key={menu.id} className="border p-4 rounded-xl bg-gray-50 flex flex-col gap-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-gray-900 text-base">{menu.name}</span>
-                    <span className="text-xs text-gray-700 font-semibold ml-2">（¥{menu.price}）</span>
-                  </div>
-                  <button
-                    onClick={() => updateStockStatus(menu.id, menu.stock_status)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      menu.stock_status === 'abundance' ? 'bg-green-100 text-green-800' :
-                      menu.stock_status === 'low' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {menu.stock_status === 'abundance' ? '余裕あり' :
-                     menu.stock_status === 'low' ? '残りわずか' : '在庫なし'}
-                  </button>
-                </div>
+      <div className="space-y-4">
+        {menus.map((menu) => (
+          <div key={menu.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex gap-4 items-center">
+            {/* 画像表示部分 */}
+            <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border border-gray-300">
+              {menu.image_url ? (
+                <img src={menu.image_url} alt={menu.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex items-center justify-center h-full text-xs text-gray-700 font-bold">No Image</div>
+              )}
+            </div>
 
-                {/* 提供数・売上の表示（text-gray-400 を text-gray-600 に変更） */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-white p-3 rounded-lg border">
-                  <div>
-                    <p className="text-gray-600 font-medium">総提供数</p>
-                    <p className="font-bold text-base text-gray-900">{stats.totalCount}個</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 font-medium">モバイル注文</p>
-                    <p className="font-semibold text-blue-700">{stats.onlineCount}個 (¥{stats.onlineRevenue})</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 font-medium">現場現金販売</p>
-                    <p className="font-semibold text-green-700">{stats.manualCount}個 (¥{stats.cashRevenue})</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 font-medium">総売上金額</p>
-                    <p className="font-bold text-base text-orange-600">¥{stats.totalRevenue}</p>
-                  </div>
-                </div>
-
-                {/* 手動現金販売カウント用ボタン */}
-                <div className="flex items-center justify-between text-xs pt-1">
-                  <span className="text-gray-700 font-semibold">現場現金の手動追加（直接販売分）:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => subManualCashCount(menu.id, menu.manual_cash_count)}
-                      className="bg-gray-200 px-3 py-1 rounded font-bold hover:bg-gray-300 text-gray-800"
-                    >
-                      -1
-                    </button>
-                    <span className="font-bold text-sm w-6 text-center text-gray-900">{menu.manual_cash_count}</span>
-                    <button
-                      onClick={() => addManualCashCount(menu.id, menu.manual_cash_count)}
-                      className="bg-green-600 text-white px-3 py-1 rounded font-bold hover:bg-green-700"
-                    >
-                      +1個 (現金)
-                    </button>
-                  </div>
-                </div>
+            <div className="flex-1">
+              <h2 className="font-black text-gray-900 text-base">{menu.name}</h2>
+              <p className="text-orange-600 font-black text-base">¥{menu.price}</p>
+              <div className="mt-1">
+                {menu.stock_status === 'abundance' && <span className="text-xs bg-green-100 text-green-900 px-2.5 py-0.5 rounded-full font-black border border-green-300">余裕あり</span>}
+                {menu.stock_status === 'low' && <span className="text-xs bg-yellow-100 text-yellow-900 px-2.5 py-0.5 rounded-full font-black border border-yellow-300">残りわずか</span>}
+                {menu.stock_status === 'sold_out' && <span className="text-xs bg-red-100 text-red-900 px-2.5 py-0.5 rounded-full font-black border border-red-300">在庫なし</span>}
               </div>
-            )
-          })}
-        </div>
-      </section>
+            </div>
+            <div>
+              <button
+                disabled={menu.stock_status === 'sold_out'}
+                onClick={() => handleOpenModal(menu)}
+                className={`px-4 py-2 rounded-lg text-sm font-black shadow-sm ${
+                  menu.stock_status === 'sold_out' ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                選ぶ
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
-      {/* 注文確認セクション */}
-      <section className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold mb-3 text-gray-800">受付・調理中の注文一覧</h2>
-        {orders.length === 0 ? (
-          <p className="text-gray-500 font-medium text-sm text-center py-8">現在、未完了の注文はありません</p>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <div key={order.id} className="border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-2xl font-black text-orange-600">#{order.order_number}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                      order.status === 'pending' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                    }`}>
-                      {order.status === 'pending' ? '調理中' : 'お渡し準備完了'}
-                    </span>
+      {cart.length > 0 && (
+        <div className="fixed bottom-4 left-0 right-0 px-4 max-w-md mx-auto">
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="w-full bg-green-600 text-white py-3 rounded-xl font-black shadow-lg flex justify-between px-6 items-center hover:bg-green-700"
+          >
+            <span>カートを見る ({cart.length}点)</span>
+            <span>注文に進む &gt;</span>
+          </button>
+        </div>
+      )}
+
+      {/* 場所確認モーダル */}
+      {isLocationModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-200">
+            <h3 className="text-lg font-black mb-2 text-gray-900">📍 模擬店の場所</h3>
+            <div className="bg-gray-100 p-4 rounded-xl my-4 text-sm text-gray-900 space-y-2 border border-gray-200">
+              <p className="font-black text-base text-orange-600">〇号館 2階 201教室</p>
+              <p className="text-xs text-gray-800 font-bold">（中庭側の階段を上ってすぐ右側です）</p>
+            </div>
+            <p className="text-xs text-gray-800 font-bold mb-6">
+              商品が「お渡し準備完了」になったら、こちらの場所まで番号札（スマホ画面）を持って取りにお越しください！
+            </p>
+            <button
+              onClick={() => setIsLocationModalOpen(false)}
+              className="w-full bg-gray-800 text-white py-2.5 rounded-xl text-sm font-black shadow-sm hover:bg-gray-900"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* オプション選択モーダル */}
+      {selectedMenu && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-xl border border-gray-200">
+            <h3 className="text-lg font-black mb-4 text-gray-900">{selectedMenu.name}のオプション</h3>
+            {selectedMenu.options?.map((opt) => (
+              <div key={opt.name} className="mb-4">
+                <label className="text-sm font-black text-gray-900 block mb-2">{opt.name}</label>
+                
+                {opt.type === 'multiple' ? (
+                  <div className="space-y-2 bg-gray-50 p-3 rounded-lg border border-gray-300">
+                    {opt.choices.map((choice) => {
+                      const currentList = (selectedOptions[opt.name] as string[]) || []
+                      const isChecked = currentList.includes(choice)
+                      return (
+                        <label key={choice} className="flex items-center gap-2 text-sm text-gray-900 font-bold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleCheckboxChange(opt.name, choice, e.target.checked)}
+                            className="w-4 h-4 text-orange-600 rounded border-gray-400 focus:ring-orange-500"
+                          />
+                          {choice}
+                        </label>
+                      )
+                    })}
                   </div>
-                  <div className="text-sm text-gray-800 space-y-1 font-medium">
-                    {order.items.map((item, idx) => (
-                      <div key={idx}>
-                        • <span className="font-bold">{item.name}</span>
-                        <span className="text-xs text-gray-600 ml-2 font-semibold">
-                          {Object.entries(item.selectedOptions || {}).map(([k, v]) => `${k}: ${v}`).join(' / ')}
-                        </span>
-                      </div>
+                ) : (
+                  <select
+                    value={(selectedOptions[opt.name] as string) || ''}
+                    onChange={(e) => setSelectedOptions({ ...selectedOptions, [opt.name]: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white font-bold text-gray-900 shadow-sm"
+                  >
+                    {opt.choices.map((choice) => (
+                      <option key={choice} value={choice}>{choice}</option>
                     ))}
-                  </div>
-                </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  {order.status === 'pending' ? (
-                    <button
-                      onClick={() => updateOrderStatus(order.id, 'ready')}
-                      className="flex-1 sm:flex-none bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-orange-600"
-                    >
-                      用意できた (通知)
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => updateOrderStatus(order.id, 'completed')}
-                      className="flex-1 sm:flex-none bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700"
-                    >
-                      提供終了（完了）
-                    </button>
-                  )}
-                </div>
+                  </select>
+                )}
               </div>
             ))}
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => setSelectedMenu(null)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-black text-gray-800 hover:bg-gray-300">キャンセル</button>
+              <button onClick={handleAddToCart} className="flex-1 bg-orange-500 text-white py-2 rounded-lg text-sm font-black shadow-sm hover:bg-orange-600">カートに入れる</button>
+            </div>
           </div>
-        )}
-      </section>
+        </div>
+      )}
+
+      {/* カート確認モーダル */}
+      {isCartOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-55">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm max-h-[80vh] flex flex-col shadow-xl border border-gray-200">
+            <h3 className="text-lg font-black mb-4 text-gray-900">注文内容の確認</h3>
+            <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+              {cart.map((item, index) => (
+                <div key={index} className="border-b border-gray-200 pb-2 flex justify-between items-center text-sm">
+                  <div>
+                    <p className="font-black text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-800 font-bold">
+                      {Object.entries(item.selectedOptions).map(([k, v]) => 
+                        `${k}: ${Array.isArray(v) ? v.join(', ') : v}`
+                      ).join(' / ')}
+                    </p>
+                  </div>
+                  <p className="font-black text-gray-900">¥{item.price}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setIsCartOpen(false)} className="flex-1 bg-gray-200 py-2 rounded-lg text-sm font-black text-gray-800 hover:bg-gray-300">もどる</button>
+              <button onClick={handleCheckout} className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-black shadow-sm hover:bg-green-700">注文を確定する</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
