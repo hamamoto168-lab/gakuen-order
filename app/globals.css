@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* 全体のデフォルトの文字色を真っ黒（#000000）に強制し、細すぎる描画を調整する */
 body {
