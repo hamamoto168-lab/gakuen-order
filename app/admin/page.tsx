@@ -37,7 +37,6 @@ export default function AdminPage() {
       .from('orders')
       .select('*')
 
-    // メニュー一覧を取得
     const { data: menuData } = await supabase
       .from('menus')
       .select('id, name, price, stock_status, manual_cash_count')
@@ -45,7 +44,6 @@ export default function AdminPage() {
     if (activeOrders) setOrders(activeOrders)
     if (historyOrders) setAllOrders(historyOrders)
     
-    // 【重要】メニューの並び順を「名前の文字コード順」で常に完全固定する
     if (menuData) {
       const sortedMenus = [...menuData].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
       setMenus(sortedMenus)
@@ -56,7 +54,6 @@ export default function AdminPage() {
   useEffect(() => {
     fetchData()
 
-    // 注文のみリアルタイム監視（メニューは再取得による位置ズレを防ぐため監視から外すか、ソートで固定）
     const orderChannel = supabase
       .channel('public:orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
@@ -91,7 +88,6 @@ export default function AdminPage() {
     if (error) alert('在庫更新に失敗しました: ' + error.message)
   }
 
-  // 現金追加：ローカルの数値を即座に＋1して、順序を崩さずにサーバーを更新する
   const addManualCashCount = async (menuId: string, currentCount: number) => {
     setMenus(menus.map(m => m.id === menuId ? { ...m, manual_cash_count: currentCount + 1 } : m))
 
@@ -102,7 +98,7 @@ export default function AdminPage() {
 
     if (error) {
       alert('更新に失敗しました: ' + error.message)
-      fetchData() // 失敗時は再取得
+      fetchData()
     }
   }
 
@@ -150,7 +146,6 @@ export default function AdminPage() {
         <p className="text-sm text-black font-bold mt-1">注文確認、在庫管理、売上・提供数集計を行います</p>
       </header>
 
-      {/* 在庫・売上・手動現金追加セクション */}
       <section className="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
         <h2 className="text-lg font-black text-black mb-3">📦 在庫管理 ＆ 売上・提供数</h2>
         <div className="space-y-4">
@@ -166,8 +161,8 @@ export default function AdminPage() {
                   <button
                     onClick={() => updateStockStatus(menu.id, menu.stock_status)}
                     className={`px-3 py-1.5 rounded-full text-xs font-black ${
-                      menu.stock_status === 'abundance' ? 'bg-green-100 text-green-900 border border-green-300' :
-                      menu.stock_status === 'low' ? 'bg-yellow-100 text-yellow-900 border border-yellow-300' : 'bg-red-100 text-red-900 border border-red-300'
+                      menu.stock_status === 'abundance' ? 'bg-green-100 text-green-950 border border-green-300' :
+                      menu.stock_status === 'low' ? 'bg-yellow-100 text-yellow-950 border border-yellow-300' : 'bg-red-100 text-red-950 border border-red-300'
                     }`}
                   >
                     {menu.stock_status === 'abundance' ? '余裕あり' :
@@ -182,11 +177,11 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <p className="text-black font-bold">モバイル注文</p>
-                    <p className="font-extrabold text-blue-800 text-sm">{stats.onlineCount}個 (¥{stats.onlineRevenue})</p>
+                    <p className="font-extrabold text-blue-900 text-sm">{stats.onlineCount}個 (¥{stats.onlineRevenue})</p>
                   </div>
                   <div>
                     <p className="text-black font-bold">現場現金販売</p>
-                    <p className="font-extrabold text-green-800 text-sm">{stats.manualCount}個 (¥{stats.cashRevenue})</p>
+                    <p className="font-extrabold text-green-900 text-sm">{stats.manualCount}個 (¥{stats.cashRevenue})</p>
                   </div>
                   <div>
                     <p className="text-black font-bold">総売上金額</p>
@@ -218,7 +213,6 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* 注文確認セクション */}
       <section className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
         <h2 className="text-lg font-black text-black mb-3">🛒 受付・調理中の注文一覧</h2>
         {orders.length === 0 ? (
@@ -231,7 +225,7 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-2xl font-black text-orange-600">#{order.order_number}</span>
                     <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
-                      order.status === 'pending' ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-purple-100 text-purple-900 border border-purple-300'
+                      order.status === 'pending' ? 'bg-blue-100 text-blue-950 border border-blue-300' : 'bg-purple-100 text-purple-950 border border-purple-300'
                     }`}>
                       {order.status === 'pending' ? '調理中' : 'お渡し準備完了'}
                     </span>
