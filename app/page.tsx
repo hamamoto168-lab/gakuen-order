@@ -181,10 +181,14 @@ export default function UserOrderPage() {
       <div className="space-y-4">
         {menus.map((menu) => (
           <div key={menu.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex gap-4 items-center">
-            {/* 画像表示部分 */}
-            <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border border-gray-300">
+            {/* 画像表示部分：imgタグ自体に明確にサイズを指定 */}
+            <div className="w-20 h-20 min-w-[80px] min-h-[80px] bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border border-gray-300">
               {menu.image_url ? (
-                <img src={menu.image_url} alt={menu.name} className="w-full h-full object-cover" />
+                <img 
+                  src={menu.image_url} 
+                  alt={menu.name} 
+                  className="w-20 h-20 object-cover" 
+                />
               ) : (
                 <div className="flex items-center justify-center h-full text-xs text-gray-700 font-bold">No Image</div>
               )}
